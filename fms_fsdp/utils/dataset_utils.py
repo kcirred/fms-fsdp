@@ -666,6 +666,7 @@ class PreloadBufferDataset(_WrapperDataset):
         self.reshard_params = ["buffer"]
 
     def __iter__(self):
+        self.setup()
         dataset = iter(self.dataset)
         while True:
             # Pad out buffer if needed
@@ -710,6 +711,78 @@ class PreloadBufferDataset(_WrapperDataset):
         # Manually set buffer size
         self.buffer_size = len(self.buffer)
         return sharded_dicts
+
+
+class DocPackingDataset(_WrapperDataset):
+    def __init__(
+            self,
+            dataset: _StatefulDataset,
+            seq_len: int,
+            n_pads: int,
+            delimiter_token: Any,
+            pad_token: Any,
+            n_bins: int = 100,
+    ):
+        super().__init__(dataset)
+        self.len = seq_len
+        self.delimiter = delimiter_token
+        self.pad = pad_token
+        self.npads = n_pads
+        self.nbins = n_bins
+        self.bins = [[] for _ in range(n_bins)]
+        self.doc = []
+        self.state_params = ["doc"]
+        self.reshard_params = ["bins"]
+        self.bad_truncs = 0
+        self.good_truncs = 0
+
+    def __iter__(self):
+        self.setup()
+        dataset = iter(self.dataset)
+        slack = torch.tensor([self.len - len(b) for b in self.bins])
+        while True:
+            # Flush any full bins
+            while slack.le(self.npads).int().sum() > 0:
+                i = slack.argmin().item()
+                out = self.bins[i] + [self.pad]*(slack[i].item())
+                self.bins[i] = []
+                slack[i] = self.len
+                yield out
+            # If no current doc, fetch one entire doc
+            if len(self.doc) == 0:
+                while len(self.doc)==0 or self.doc[-1] != self.delimiter:
+                    self.doc += next(dataset)
+            # If doc is large, return as many full chunks as possible
+            while len(self.doc) > self.len:
+                out = self.doc[:self.len]
+                self.doc = self.doc[self.len:]
+                self.good_truncs += 1
+                yield out
+            if len(self.doc) > 0:
+                # Determine if doc fits into existing buckets
+                doc_fits = slack.ge(len(self.doc)).int().sum().item() >= 1
+                if doc_fits:
+                    # Add doc to fullest available bin
+                    slack_after = slack.sub(len(self.doc))
+                    slack_after += slack_after.sign().clamp(min=-1,max=0).neg().mul(1e9).int()
+                    best_bin = slack_after.argmin().item()
+                    self.bins[best_bin] += self.doc
+                    slack[best_bin] = slack[best_bin] - len(self.doc)
+                    self.doc = []
+                else:
+                    # Add doc section to fullest bin
+                    best_bin = slack.argmin().item()
+                    self.bins[best_bin] += self.doc[:slack[best_bin].item()]
+                    self.doc = self.doc[slack[best_bin].item():]
+                    self.bad_truncs += 1
+                    slack[best_bin] = 0
+
+    def load_state_dict(self, state_dicts, sharded_input=False):
+        out = super().load_state_dict(state_dicts, sharded_input)
+        # If we've scaled up, add back empty buckets
+        if len(self.bins) < self.nbins:
+            self.bins += [[] for _ in range(self.nbins - len(self.bins))]
+        return out
 
 
 class BufferDataset(_WrapperDataset):
@@ -803,6 +876,7 @@ class BufferDataset(_WrapperDataset):
 
     # Fill buffer line by line, delimiters and packing/splitting as appropriate
     def __iter__(self):
+        self.setup()
         dataset = iter(self.dataset)
         while True:
             out, buffer = self._get_buffer(dataset, self.len, self.buffer)
@@ -1086,8 +1160,7 @@ class StreamingDocDataset(_StatefulDataset):
                 return state
 
     def __iter__(self):
-        if not self.is_setup:
-            self.setup()
+        self.setup()
         docset_offset = self.docset_index
         lcg_offset = self.lcg_state
         residual_chunks = self.chunk_index + 1  # pick up AFTER where the ckp left off
