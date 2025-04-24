@@ -104,7 +104,7 @@ def get_data_loader(cfg, rank, world_size, postprocess=[causal_lm]):
         bos_token=cfg.bos_token,
         strip_tokens=set(droplist),
         min_length=3,
-        seed=cfg.seed,
+        seed=1337,
     )
     # Add rescaling/resharding
     data = ScalableShardDataset(
