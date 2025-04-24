@@ -40,7 +40,10 @@ class train_config:
     training_stage: str = "initial"
     learning_rate: float = 3e-4
     grad_clip_thresh: float = 1.0
-    seed: int = 2023
+    seed: int = 1337
+
+    # data buffer
+    data_buffer: int = 10000
 
     # continued training spec
     resuming_dataset: bool = False
