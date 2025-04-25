@@ -104,7 +104,7 @@ def get_data_loader(cfg, rank, world_size, postprocess=[causal_lm]):
         bos_token=cfg.bos_token,
         strip_tokens=set(droplist),
         min_length=3,
-        seed=1337,
+        seed=cfg.seed,
     )
     # Add rescaling/resharding
     data = ScalableShardDataset(
@@ -138,11 +138,7 @@ def get_data_loader(cfg, rank, world_size, postprocess=[causal_lm]):
     # )
     # Shuffle outputs in length 10k buffer. Consecutive lines appear 10k steps apart on average.
 
-    if cfg.data_buffer:
-        data = PreloadBufferDataset(data, cfg.data_buffer)
-        print(cfg.data_buffer, cfg.seed)
-    else:
-        data = PreloadBufferDataset(data, 10000)
+    data = PreloadBufferDataset(data, 1000)
 
     # Apply desired postprocessing steps in sequence
     data = PreprocessDataset(data, torch.IntTensor)
