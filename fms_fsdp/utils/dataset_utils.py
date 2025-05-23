@@ -15,6 +15,9 @@ from transformers import AutoTokenizer  # type: ignore
 
 from fms_fsdp.utils.checkpointing_utils import get_latest
 
+# TODO: long doc breaking
+# TODO: titan PR adds
+# TODO: zero-len file asserts/check
 
 """
 The following distributed dataloaders are designed around 3 main principles:
@@ -343,7 +346,7 @@ class ArrowHandler(_ShardFileHandler):
     Non-standard data format, though.
     """
 
-    def __init__(self, col_names: List[str] = ["tokens"]):
+    def __init__(self, col_names: List[str] = ["text", "contents", "tokens"]):
         self.col_names = col_names
 
     def is_legal(self, filepath: str):
@@ -383,7 +386,7 @@ class ParquetHandler(_ShardFileHandler):
     before getting/slicing. However, this is a standard and widely-used data format.
     """
 
-    def __init__(self, tokenizer_path: str, col_names: List[str] = ["text"]):
+    def __init__(self, tokenizer_path: str, col_names: List[str] = ["text", "contents", "tokens"]):
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
         self.col_names = col_names
 

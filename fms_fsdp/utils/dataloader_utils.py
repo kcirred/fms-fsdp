@@ -73,11 +73,11 @@ def get_data_loader(cfg, rank, world_size):
         Number of distributed workers. Used for handling dataset sharding logic.
     """
 
-    if cfg.fim_training:
+    fim_training = cfg.psm_rate + cfg.spm_rate > 0
+    if fim_training:
         assert cfg.bos_token is None, "No BOS in FIM training. Did you mean fim_pre?"
 
     datasets, weights, cols = parse_data_args(cfg.datasets, cfg.weights, cfg.col_name)
-
 
     # Base streaming dataset. Returns doc chunks in sequence.
     # Implements dataset sampling and rescalability.
@@ -132,7 +132,7 @@ def get_data_loader(cfg, rank, world_size):
     data = PreloadBufferDataset(data, 10000)
 
     # Apply FIM transformation if needed
-    if cfg.fim_training:
+    if fim_training:
         data = FIMDataset(
             data,
             cfg.eos_token,
