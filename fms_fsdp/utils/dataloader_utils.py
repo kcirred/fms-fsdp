@@ -94,7 +94,7 @@ def get_data_loader(cfg, rank, world_size):
             cfg.tokenizer_path, cols, cfg.doc_cutoff
         )
     else:
-        filehandler = _handler_map[cfg.file_type, cols]
+        filehandler = _handler_map[cfg.file_type](cols)
     # Base reader layer
     data = StreamingDocDataset(
         cfg.data_path,

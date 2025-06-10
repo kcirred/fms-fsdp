@@ -314,3 +314,32 @@ class Checkpointer:
         )
 
         return self._cleanup()
+
+    def save_single_file(
+            self,
+            step,
+            model,
+            is_compiled=False,
+            **kwargs,
+        ):
+            # Note: metadata kwargs cannot contain any of:
+            # (step, model)
+            save_name = os.path.join(self.ckp_path, "step_" + str(step) + "_ckp.pth")
+            save_time = time.time()
+            with FSDP.state_dict_type(
+                model,
+                StateDictType.FULL_STATE_DICT,
+                FullStateDictConfig(offload_to_cpu=True, rank0_only=True),
+            ):
+                if is_compiled:
+                    model_state = model._orig_mod.state_dict()
+                else:
+                    model_state = model.state_dict()
+            if self.rank == 0:
+                metadata = kwargs
+                metadata["step"] = step
+                metadata["model_state"] = model_state
+                torch.save(metadata, save_name)
+            self.report("Checkpoint written", model_save_time=time.time() - save_time)
+
+            return self._cleanup()
