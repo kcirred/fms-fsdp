@@ -197,7 +197,7 @@ def get_model_config(model_variant):
     elif model_variant == "mamba_1b":
         model_config = {
             "d_model": 1280,
-            "d_intermediate": 3072,
+            "d_intermediate": 4096,
             "n_layer": 32,
             "vocab_size": 128256,
             "ssm_cfg": {"layer": "Mamba2"},
@@ -206,8 +206,8 @@ def get_model_config(model_variant):
                 "causal": True,
                 "d_conv": 0,
                 "head_dim": 128,
-                "num_heads": 10,
-                "num_heads_kv": 5,
+                "num_heads": 16,
+                "num_heads_kv": 4,
                 "out_proj_bias": False,
                 "qkv_proj_bias": False,
                 "rotary_emb_dim": 64,
